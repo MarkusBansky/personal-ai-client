@@ -38,7 +38,7 @@ A mobile app (iOS & Android) built with **Expo** and **React Native** that conne
 ### Prerequisites
 
 - Node.js 18+
-- [Expo Go](https://expo.dev/go) app on your phone **or** Android/iOS simulator
+- [Expo Go](https://expo.dev/go) app installed on your iOS or Android device
 
 ### Installation
 
@@ -52,22 +52,97 @@ npm start
 
 Then scan the QR code with **Expo Go** on your phone, or press `a` for Android emulator / `i` for iOS simulator.
 
-### Connecting to a Local Server
+---
 
-#### Ollama
+## Testing on Linux with a Physical iOS Device
+
+iOS simulators are only available on macOS, but you can fully test the app on a **real iPhone** from Linux using the **Expo Go** app and either LAN mode or tunnel mode.
+
+### Step 1 — Install Prerequisites
+
 ```bash
-# Start Ollama (must bind to 0.0.0.0 so your phone can reach it)
-OLLAMA_HOST=0.0.0.0:11434 ollama serve
+# Node.js 18+ (if not already installed)
+# Ubuntu/Debian:
+sudo apt update && sudo apt install -y nodejs npm
+
+# Or use nvm:
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+nvm install 20 && nvm use 20
 ```
 
-#### vLLM
+> **Note:** Tunnel mode uses `@expo/ngrok` — it is already installed as a dependency via `npm install`.
+
+### Step 2 — Install Expo Go on your iPhone
+
+Download **Expo Go** from the [App Store](https://apps.apple.com/app/expo-go/id982107779) on your iPhone.
+
+### Step 3 — Start the dev server
+
+#### Option A — LAN mode (fastest, requires same Wi-Fi)
+
+Your iPhone and Linux machine must be on the **same Wi-Fi network**.
+
 ```bash
+npm run start:lan
+```
+
+Scan the QR code shown in your terminal with the **Camera app** on iPhone (or from within Expo Go).
+
+#### Option B — Tunnel mode (works on any network)
+
+Tunnel mode routes traffic through Expo's servers, so your phone and machine do **not** need to be on the same network. This is useful when the phone is on cellular or on a different network.
+
+```bash
+npm run start:tunnel
+```
+
+> Tunnel mode uses `@expo/ngrok` (already installed) to create a secure tunnel. The first run may take 10–20 seconds to establish the tunnel.
+
+Scan the QR code from the Expo Go app on your iPhone.
+
+### Step 4 — (Optional) Connect to a local AI server from your iPhone
+
+When testing with a **physical device**, `localhost` refers to the phone itself, not your Linux machine. Use your machine's LAN IP instead.
+
+```bash
+# Find your Linux machine's IP address
+ip addr show | grep 'inet ' | grep -v '127.0.0.1'
+# Example output: inet 192.168.1.42/24 ...
+```
+
+Then in the app's Settings tab, update provider Base URLs:
+- Ollama: `http://192.168.1.42:11434`
+- vLLM: `http://192.168.1.42:8000`
+
+**Ensure your AI server binds to `0.0.0.0`** (not just `127.0.0.1`):
+
+```bash
+# Ollama
+OLLAMA_HOST=0.0.0.0:11434 ollama serve
+
+# vLLM
 python -m vllm.entrypoints.openai.api_server \
   --model meta-llama/Llama-3.1-8B-Instruct \
   --host 0.0.0.0 --port 8000
 ```
 
-**Network tip:** When running on a physical device, replace `localhost` with your machine's local IP address (e.g. `192.168.1.100`). For Android emulator use `10.0.2.2`.
+You may also need to open the ports in your Linux firewall:
+
+```bash
+sudo ufw allow 11434/tcp   # Ollama
+sudo ufw allow 8000/tcp    # vLLM
+```
+
+### Available dev scripts
+
+| Command | Description |
+|---|---|
+| `npm start` | Start Metro bundler (auto-detects network) |
+| `npm run start:lan` | LAN mode — fastest, requires same Wi-Fi |
+| `npm run start:tunnel` | Tunnel mode — works on any network |
+| `npm run ts:check` | Type-check without building |
+
+---
 
 ### Configuration
 
