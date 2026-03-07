@@ -15,14 +15,15 @@ const defaultSettings: AppSettings = {
 };
 
 /**
- * Migrate legacy `searxng` config to the unified `webSearch` config.
+ * Resolve the webSearch config from stored settings, migrating from
+ * the legacy `searxng` field if present.
  */
-function migrateSearxng(stored: Record<string, unknown>): WebSearchConfig | undefined {
-  const legacy = stored.searxng as { enabled?: boolean; baseUrl?: string; requestType?: string } | undefined;
-  if (!legacy) return stored.webSearch as WebSearchConfig | undefined;
-
+function resolveWebSearchConfig(stored: Record<string, unknown>): WebSearchConfig | undefined {
   // Already migrated
   if (stored.webSearch) return stored.webSearch as WebSearchConfig;
+
+  const legacy = stored.searxng as { enabled?: boolean; baseUrl?: string; requestType?: string } | undefined;
+  if (!legacy) return undefined;
 
   return {
     enabled: legacy.enabled ?? false,
@@ -39,7 +40,7 @@ export async function loadSettings(): Promise<AppSettings> {
     const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
     if (!raw) return defaultSettings;
     const stored = JSON.parse(raw) as Record<string, unknown>;
-    const webSearch = migrateSearxng(stored);
+    const webSearch = resolveWebSearchConfig(stored);
     return {
       ...defaultSettings,
       ...stored,
