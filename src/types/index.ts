@@ -4,13 +4,35 @@ export type AgentType = 'chat' | 'researcher' | 'coding' | 'custom';
 
 export type SearxngRequestType = 'json_api' | 'html_get' | 'html_post';
 
+export type SearchProviderType = 'searxng' | 'tavily' | 'exa' | 'bing';
+
 export interface SearxngConfig {
-  enabled: boolean;
   baseUrl: string;
   requestType: SearxngRequestType;
 }
 
-export interface SearxngSearchResult {
+export interface TavilyConfig {
+  apiKey: string;
+}
+
+export interface ExaConfig {
+  apiKey: string;
+}
+
+export interface BingConfig {
+  apiKey: string;
+}
+
+export interface WebSearchConfig {
+  enabled: boolean;
+  activeProvider: SearchProviderType;
+  searxng?: SearxngConfig;
+  tavily?: TavilyConfig;
+  exa?: ExaConfig;
+  bing?: BingConfig;
+}
+
+export interface SearchResult {
   title: string;
   url: string;
   content: string;
@@ -117,5 +139,5 @@ export interface AppSettings {
   agents: Agent[];
   activeConversationId: string | null;
   theme: 'light' | 'dark';
-  searxng?: SearxngConfig;
+  webSearch?: WebSearchConfig;
 }

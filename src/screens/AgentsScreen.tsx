@@ -13,7 +13,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../../App';
 import { Ionicons } from '@expo/vector-icons';
-import { Agent, Provider, SearxngConfig } from '../types';
+import { Agent, Provider, WebSearchConfig } from '../types';
 import { COLORS } from '../constants';
 
 type Props = CompositeScreenProps<
@@ -24,11 +24,11 @@ type Props = CompositeScreenProps<
 interface AgentsScreenProps {
   agents: Agent[];
   providers: Provider[];
-  searxng?: SearxngConfig;
+  webSearch?: WebSearchConfig;
   navigation: Props['navigation'];
 }
 
-export default function AgentsScreen({ agents, providers, searxng, navigation }: AgentsScreenProps) {
+export default function AgentsScreen({ agents, providers, webSearch, navigation }: AgentsScreenProps) {
   const enabledProviders = providers.filter((p) => p.enabled);
 
   const handleAgentPress = useCallback(
@@ -37,9 +37,9 @@ export default function AgentsScreen({ agents, providers, searxng, navigation }:
         Alert.alert('No Provider', 'No enabled providers available. Enable a provider in Settings first.');
         return;
       }
-      navigation.navigate('Chat', { agent, providers, searxng });
+      navigation.navigate('Chat', { agent, providers, webSearch });
     },
-    [enabledProviders, providers, searxng, navigation],
+    [enabledProviders, providers, webSearch, navigation],
   );
 
   const handleEditAgent = useCallback(

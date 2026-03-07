@@ -7,7 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Agent, AppSettings, Conversation, Provider, SearxngConfig } from './src/types';
+import { Agent, AppSettings, Conversation, Provider, WebSearchConfig } from './src/types';
 import { COLORS } from './src/constants';
 import { loadSettings, saveSettings, loadConversations } from './src/services/storage';
 
@@ -20,7 +20,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 // ── Navigation param types ────────────────────────────────────────────────────
 export type RootStackParamList = {
   Tabs: undefined;
-  Chat: { agent: Agent; providers: Provider[]; conversation?: Conversation; searxng?: SearxngConfig };
+  Chat: { agent: Agent; providers: Provider[]; conversation?: Conversation; webSearch?: WebSearchConfig };
   EditAgent: { agent: Agent | null; providers: Provider[] };
   Settings: undefined;
 };
@@ -106,9 +106,9 @@ export default function App() {
     [updateSettings],
   );
 
-  const handleSearxngChange = useCallback(
-    async (config: SearxngConfig | undefined) => {
-      await updateSettings({ searxng: config });
+  const handleWebSearchChange = useCallback(
+    async (config: WebSearchConfig | undefined) => {
+      await updateSettings({ webSearch: config });
     },
     [updateSettings],
   );
@@ -153,7 +153,7 @@ export default function App() {
               {...props}
               agents={s.agents}
               providers={s.providers}
-              searxng={s.searxng}
+              webSearch={s.webSearch}
             />
           )}
         </Tab.Screen>
@@ -164,7 +164,7 @@ export default function App() {
               conversations={conversations}
               agents={s.agents}
               providers={s.providers}
-              searxng={s.searxng}
+              webSearch={s.webSearch}
               onConversationsChange={setConversations}
             />
           )}
@@ -175,8 +175,8 @@ export default function App() {
               {...props}
               providers={s.providers}
               onProvidersChange={handleProvidersChange}
-              searxng={s.searxng}
-              onSearxngChange={handleSearxngChange}
+              webSearch={s.webSearch}
+              onWebSearchChange={handleWebSearchChange}
             />
           )}
         </Tab.Screen>
@@ -228,8 +228,8 @@ export default function App() {
                 {...props}
                 providers={s.providers}
                 onProvidersChange={handleProvidersChange}
-                searxng={s.searxng}
-                onSearxngChange={handleSearxngChange}
+                webSearch={s.webSearch}
+                onWebSearchChange={handleWebSearchChange}
               />
             )}
           </Stack.Screen>

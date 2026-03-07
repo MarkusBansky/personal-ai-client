@@ -23,7 +23,7 @@ import { RootStackParamList } from '../../App';
 import { Message, MessageVersion, Conversation, ModelInfo, LinkMeta, ToolCall, ToolResult } from '../types';
 import { COLORS, SEARCH_TOOL_DEFINITION, SEARCH_SYSTEM_PROMPT_SUPPLEMENT } from '../constants';
 import { streamChat, fetchModels } from '../services/ai';
-import { searchSearxng } from '../services/searxng';
+import { webSearch } from '../services/search';
 import { saveConversation } from '../services/storage';
 import { getModelPricing, calculateCost, formatCost, formatPrice } from '../constants/pricing';
 import LinkBubbles from '../components/LinkBubbles';
@@ -32,10 +32,10 @@ import ModelSelectorModal, { SelectedModel } from '../components/ModelSelectorMo
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
 export default function ChatScreen({ route, navigation }: Props) {
-  const { agent, providers, conversation: initialConversation, searxng } = route.params;
+  const { agent, providers, conversation: initialConversation, webSearch: webSearchConfig } = route.params;
   const headerHeight = useHeaderHeight();
 
-  const searchEnabled = !!searxng?.enabled;
+  const searchEnabled = !!webSearchConfig?.enabled;
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const systemPrompt = searchEnabled
@@ -304,7 +304,7 @@ export default function ChatScreen({ route, navigation }: Props) {
   }, [persistConversation]);
 
   const handleToolCalls = useCallback(async (toolCalls: ToolCall[]): Promise<ToolResult[]> => {
-    if (!searxng) return [];
+    if (!webSearchConfig) return [];
 
     const results: ToolResult[] = [];
     for (const tc of toolCalls) {
@@ -313,7 +313,7 @@ export default function ChatScreen({ route, navigation }: Props) {
           const args = JSON.parse(tc.arguments || '{}');
           const query = args.query ?? '';
           setSearchStatus(`Searching: "${query}"`);
-          const searchResults = await searchSearxng(searxng, query);
+          const searchResults = await webSearch(webSearchConfig, query);
           results.push({
             toolCallId: tc.id,
             name: tc.name,
@@ -341,7 +341,7 @@ export default function ChatScreen({ route, navigation }: Props) {
     }
     setSearchStatus(null);
     return results;
-  }, [searxng]);
+  }, [webSearchConfig]);
 
   const toolOptions = useMemo(() => {
     if (!searchEnabled) return undefined;

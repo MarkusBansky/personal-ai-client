@@ -1,5 +1,5 @@
 import { fetch } from 'expo/fetch';
-import { SearxngConfig, SearxngSearchResult } from '../types';
+import { SearxngConfig, SearchResult } from '../types';
 
 const MAX_RESULTS = 5;
 
@@ -9,7 +9,7 @@ const MAX_RESULTS = 5;
 export async function searchSearxng(
   config: SearxngConfig,
   query: string,
-): Promise<SearxngSearchResult[]> {
+): Promise<SearchResult[]> {
   const base = config.baseUrl.replace(/\/$/, '');
 
   switch (config.requestType) {
@@ -27,7 +27,7 @@ export async function searchSearxng(
 async function searchJsonApi(
   base: string,
   query: string,
-): Promise<SearxngSearchResult[]> {
+): Promise<SearchResult[]> {
   const url = `${base}/search?q=${encodeURIComponent(query)}&format=json`;
   const response = await fetch(url, {
     method: 'GET',
@@ -52,7 +52,7 @@ async function searchJsonApi(
 async function searchHtmlGet(
   base: string,
   query: string,
-): Promise<SearxngSearchResult[]> {
+): Promise<SearchResult[]> {
   const url = `${base}/search?q=${encodeURIComponent(query)}`;
   const response = await fetch(url, {
     method: 'GET',
@@ -70,7 +70,7 @@ async function searchHtmlGet(
 async function searchHtmlPost(
   base: string,
   query: string,
-): Promise<SearxngSearchResult[]> {
+): Promise<SearchResult[]> {
   const response = await fetch(`${base}/search`, {
     method: 'POST',
     headers: {
@@ -93,8 +93,8 @@ async function searchHtmlPost(
  * SearXNG wraps each result in <article> tags with <h3><a href="...">title</a></h3>
  * and <p class="content">snippet</p>.
  */
-function parseHtmlResults(html: string): SearxngSearchResult[] {
-  const results: SearxngSearchResult[] = [];
+function parseHtmlResults(html: string): SearchResult[] {
+  const results: SearchResult[] = [];
 
   // Match <article> blocks
   const articleRegex = /<article[^>]*>([\s\S]*?)<\/article>/gi;

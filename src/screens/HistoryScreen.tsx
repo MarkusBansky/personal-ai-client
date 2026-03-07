@@ -12,7 +12,7 @@ import {
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-import { Conversation, Agent, Provider, SearxngConfig } from '../types';
+import { Conversation, Agent, Provider, WebSearchConfig } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants';
 import { deleteConversation } from '../services/storage';
@@ -21,7 +21,7 @@ interface HistoryScreenProps {
   conversations: Conversation[];
   agents: Agent[];
   providers: Provider[];
-  searxng?: SearxngConfig;
+  webSearch?: WebSearchConfig;
   navigation: any;
   onConversationsChange: (conversations: Conversation[]) => void;
 }
@@ -40,7 +40,7 @@ export default function HistoryScreen({
   conversations,
   agents,
   providers,
-  searxng,
+  webSearch,
   navigation,
   onConversationsChange,
 }: HistoryScreenProps) {
@@ -60,9 +60,9 @@ export default function HistoryScreen({
         Alert.alert('No Provider', 'No enabled providers available. Enable a provider in Settings first.');
         return;
       }
-      navigation.navigate('Chat', { agent, providers, conversation: conv, searxng });
+      navigation.navigate('Chat', { agent, providers, conversation: conv, webSearch });
     },
-    [getAgent, providers, searxng, navigation],
+    [getAgent, providers, webSearch, navigation],
   );
 
   const handleDelete = useCallback(
