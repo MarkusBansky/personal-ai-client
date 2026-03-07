@@ -1,21 +1,21 @@
-import { Agent, Provider } from '../types';
+import { Agent, Provider, ToolDefinition } from '../types';
 
 export const COLORS = {
-  primary: '#6366F1',
-  primaryLight: '#818CF8',
-  primaryDark: '#4F46E5',
+  primary: '#71717a',
+  primaryLight: '#a1a1aa',
+  primaryDark: '#52525b',
   secondary: '#10B981',
   danger: '#EF4444',
   warning: '#F59E0B',
-  background: '#0F172A',
-  surface: '#1E293B',
-  surfaceLight: '#334155',
-  border: '#334155',
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  userBubble: '#6366F1',
-  assistantBubble: '#1E293B',
+  background: '#09090b',
+  surface: '#18181b',
+  surfaceLight: '#27272a',
+  border: '#27272a',
+  text: '#fafafa',
+  textSecondary: '#a1a1aa',
+  textMuted: '#71717a',
+  userBubble: '#27272a',
+  assistantBubble: '#18181b',
   white: '#FFFFFF',
 };
 
@@ -43,10 +43,10 @@ export const AGENT_ICONS: Record<string, string> = {
 };
 
 export const AGENT_COLORS: Record<string, string> = {
-  chat: '#6366F1',
-  researcher: '#10B981',
-  coding: '#F59E0B',
-  custom: '#8B5CF6',
+  chat: '#818cf8',
+  researcher: '#34d399',
+  coding: '#fbbf24',
+  custom: '#a78bfa',
 };
 
 export const DEFAULT_PROVIDERS: Provider[] = [
@@ -57,38 +57,7 @@ export const DEFAULT_PROVIDERS: Provider[] = [
     baseUrl: 'http://localhost:11434',
     apiKey: '',
     model: 'llama3.2',
-  },
-  {
-    id: 'vllm-local',
-    type: 'vllm',
-    name: 'vLLM (Local)',
-    baseUrl: 'http://localhost:8000',
-    apiKey: '',
-    model: 'meta-llama/Llama-3.1-8B-Instruct',
-  },
-  {
-    id: 'openai-default',
-    type: 'openai',
-    name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    apiKey: '',
-    model: 'gpt-4o',
-  },
-  {
-    id: 'anthropic-default',
-    type: 'anthropic',
-    name: 'Anthropic',
-    baseUrl: 'https://api.anthropic.com',
-    apiKey: '',
-    model: 'claude-3-5-sonnet-20241022',
-  },
-  {
-    id: 'mistral-default',
-    type: 'mistral',
-    name: 'Mistral AI',
-    baseUrl: 'https://api.mistral.ai/v1',
-    apiKey: '',
-    model: 'mistral-large-latest',
+    enabled: true,
   },
 ];
 
@@ -99,9 +68,8 @@ export const DEFAULT_AGENTS: Agent[] = [
     type: 'chat',
     description: 'General purpose conversational assistant',
     systemPrompt: DEFAULT_SYSTEM_PROMPTS.chat,
-    providerId: 'ollama-local',
     icon: '💬',
-    color: '#6366F1',
+    color: '#818cf8',
   },
   {
     id: 'agent-researcher',
@@ -109,9 +77,8 @@ export const DEFAULT_AGENTS: Agent[] = [
     type: 'researcher',
     description: 'Deep research and analysis on any topic',
     systemPrompt: DEFAULT_SYSTEM_PROMPTS.researcher,
-    providerId: 'ollama-local',
     icon: '🔬',
-    color: '#10B981',
+    color: '#34d399',
   },
   {
     id: 'agent-coding',
@@ -119,8 +86,29 @@ export const DEFAULT_AGENTS: Agent[] = [
     type: 'coding',
     description: 'Expert programming and code review assistant',
     systemPrompt: DEFAULT_SYSTEM_PROMPTS.coding,
-    providerId: 'ollama-local',
     icon: '💻',
-    color: '#F59E0B',
+    color: '#fbbf24',
   },
 ];
+
+export const SEARCH_TOOL_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'web_search',
+    description:
+      'Search the web for current information. Use this tool to find up-to-date facts, news, documentation, or any information that may not be in your training data. Returns a list of search results with titles, URLs, and content snippets.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to look up on the web.',
+        },
+      },
+      required: ['query'],
+    },
+  },
+};
+
+export const SEARCH_SYSTEM_PROMPT_SUPPLEMENT =
+  'You have access to a web_search tool that lets you search the internet. Use it to find current, accurate information before answering questions that may require up-to-date knowledge, real-time data, or facts you are uncertain about. Always cite the sources from search results in your answers.';

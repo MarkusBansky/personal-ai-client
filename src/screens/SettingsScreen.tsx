@@ -9,11 +9,15 @@ import {
   Alert,
   SafeAreaView,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import uuid from 'react-native-uuid';
 import { RootStackParamList } from '../../App';
-import { Provider, ProviderType } from '../types';
+import { Provider, ProviderType, SearxngConfig, SearxngRequestType } from '../types';
+import { Ionicons } from '@expo/vector-icons';
+import { validateProvider } from '../services/ai';
+import { validateSearxng } from '../services/searxng';
 import { COLORS } from '../constants';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -45,6 +49,12 @@ const DEFAULT_MODELS: Record<ProviderType, string> = {
   custom: '',
 };
 
+const SEARXNG_REQUEST_TYPES: { value: SearxngRequestType; label: string; description: string }[] = [
+  { value: 'json_api', label: 'JSON API', description: 'Recommended. Uses /search?format=json endpoint.' },
+  { value: 'html_get', label: 'HTML GET', description: 'Fetches HTML search results via GET request.' },
+  { value: 'html_post', label: 'HTML POST', description: 'Submits search query via POST form.' },
+];
+
 interface ProviderFormState {
   id: string;
   type: ProviderType;
@@ -52,6 +62,7 @@ interface ProviderFormState {
   baseUrl: string;
   apiKey: string;
   model: string;
+  enabled: boolean;
   expanded: boolean;
 }
 
@@ -60,16 +71,28 @@ interface SettingsScreenProps {
   navigation: Props['navigation'];
   providers: Provider[];
   onProvidersChange: (providers: Provider[]) => void;
+  searxng?: SearxngConfig;
+  onSearxngChange: (config: SearxngConfig | undefined) => void;
 }
 
 export default function SettingsScreen({
   navigation,
   providers,
   onProvidersChange,
+  searxng,
+  onSearxngChange,
 }: SettingsScreenProps) {
   const [forms, setForms] = useState<ProviderFormState[]>(() =>
     providers.map((p) => ({ ...p, expanded: false })),
   );
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // SearXNG form state
+  const [searxngExpanded, setSearxngExpanded] = useState(false);
+  const [searxngUrl, setSearxngUrl] = useState(searxng?.baseUrl ?? '');
+  const [searxngRequestType, setSearxngRequestType] = useState<SearxngRequestType>(searxng?.requestType ?? 'json_api');
+  const [searxngValidating, setSearxngValidating] = useState(false);
 
   const updateForm = useCallback(
     (id: string, patch: Partial<ProviderFormState>) => {
@@ -79,11 +102,33 @@ export default function SettingsScreen({
   );
 
   const handleSaveProvider = useCallback(
-    (form: ProviderFormState) => {
+    async (form: ProviderFormState) => {
       if (!form.name.trim() || !form.baseUrl.trim()) {
         Alert.alert('Validation', 'Name and Base URL are required.');
         return;
       }
+
+      setValidatingId(form.id);
+      const provider: Provider = {
+        id: form.id,
+        type: form.type,
+        name: form.name.trim(),
+        baseUrl: form.baseUrl.trim(),
+        apiKey: form.apiKey.trim(),
+        model: form.model.trim(),
+        enabled: form.enabled,
+      };
+      const result = await validateProvider(provider);
+      setValidatingId(null);
+
+      if (!result.ok) {
+        Alert.alert(
+          'Connection Failed',
+          `Could not reach the provider API.\n\n${result.error}`,
+        );
+        return;
+      }
+
       const updated = forms.map((f): Provider => ({
         id: f.id,
         type: f.type,
@@ -91,10 +136,71 @@ export default function SettingsScreen({
         baseUrl: f.baseUrl.trim(),
         apiKey: f.apiKey.trim(),
         model: f.model.trim(),
+        enabled: f.enabled,
       }));
       onProvidersChange(updated);
       updateForm(form.id, { expanded: false });
       Alert.alert('Saved', `${form.name} configuration saved.`);
+    },
+    [forms, onProvidersChange, updateForm],
+  );
+
+  const handleToggleEnabled = useCallback(
+    async (form: ProviderFormState) => {
+      if (form.enabled) {
+        // Disabling — no check needed
+        updateForm(form.id, { enabled: false });
+        const updated = forms.map((f): Provider => ({
+          id: f.id,
+          type: f.type,
+          name: f.name.trim(),
+          baseUrl: f.baseUrl.trim(),
+          apiKey: f.apiKey.trim(),
+          model: f.model.trim(),
+          enabled: f.id === form.id ? false : f.enabled,
+        }));
+        onProvidersChange(updated);
+        return;
+      }
+
+      // Enabling — validate API first
+      if (!form.baseUrl.trim()) {
+        Alert.alert('Cannot Enable', 'Base URL is required. Configure the provider first.');
+        return;
+      }
+
+      setTogglingId(form.id);
+      const provider: Provider = {
+        id: form.id,
+        type: form.type,
+        name: form.name.trim(),
+        baseUrl: form.baseUrl.trim(),
+        apiKey: form.apiKey.trim(),
+        model: form.model.trim(),
+        enabled: true,
+      };
+      const result = await validateProvider(provider);
+      setTogglingId(null);
+
+      if (!result.ok) {
+        Alert.alert(
+          'Cannot Enable',
+          `API check failed — the provider is not reachable.\n\n${result.error}`,
+        );
+        return;
+      }
+
+      updateForm(form.id, { enabled: true });
+      const updated = forms.map((f): Provider => ({
+        id: f.id,
+        type: f.type,
+        name: f.name.trim(),
+        baseUrl: f.baseUrl.trim(),
+        apiKey: f.apiKey.trim(),
+        model: f.model.trim(),
+        enabled: f.id === form.id ? true : f.enabled,
+      }));
+      onProvidersChange(updated);
     },
     [forms, onProvidersChange, updateForm],
   );
@@ -107,6 +213,7 @@ export default function SettingsScreen({
       baseUrl: '',
       apiKey: '',
       model: '',
+      enabled: false,
       expanded: true,
     };
     setForms((prev) => [...prev, newForm]);
@@ -130,6 +237,7 @@ export default function SettingsScreen({
                 baseUrl: f.baseUrl,
                 apiKey: f.apiKey,
                 model: f.model,
+                enabled: f.enabled,
               })),
             );
           },
@@ -138,6 +246,51 @@ export default function SettingsScreen({
     },
     [forms, onProvidersChange],
   );
+
+  const handleSaveSearxng = useCallback(async () => {
+    if (!searxngUrl.trim()) {
+      Alert.alert('Validation', 'Server URL is required.');
+      return;
+    }
+
+    setSearxngValidating(true);
+    const config: SearxngConfig = {
+      enabled: true,
+      baseUrl: searxngUrl.trim(),
+      requestType: searxngRequestType,
+    };
+
+    const result = await validateSearxng(config);
+    setSearxngValidating(false);
+
+    if (!result.valid) {
+      Alert.alert(
+        'Connection Failed',
+        `Could not validate SearXNG server.\n\n${result.error}`,
+      );
+      return;
+    }
+
+    onSearxngChange(config);
+    setSearxngExpanded(false);
+    Alert.alert('Saved', 'SearXNG search configuration saved and validated.');
+  }, [searxngUrl, searxngRequestType, onSearxngChange]);
+
+  const handleRemoveSearxng = useCallback(() => {
+    Alert.alert('Remove Search', 'Remove SearXNG configuration?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          onSearxngChange(undefined);
+          setSearxngUrl('');
+          setSearxngRequestType('json_api');
+          setSearxngExpanded(false);
+        },
+      },
+    ]);
+  }, [onSearxngChange]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -163,8 +316,17 @@ export default function SettingsScreen({
                 <Text style={styles.providerType}>{form.type}</Text>
               </View>
               <View style={styles.providerHeaderRight}>
-                <View style={[styles.statusDot, form.apiKey || !PROVIDER_TYPES.find(t => t.value === form.type)?.hasApiKey ? styles.statusActive : styles.statusInactive]} />
-                <Text style={styles.chevron}>{form.expanded ? '▲' : '▼'}</Text>
+                {togglingId === form.id ? (
+                  <ActivityIndicator color={COLORS.primary} size="small" />
+                ) : (
+                  <Switch
+                    value={form.enabled}
+                    onValueChange={() => handleToggleEnabled(form)}
+                    trackColor={{ false: COLORS.surfaceLight, true: COLORS.secondary + '66' }}
+                    thumbColor={form.enabled ? COLORS.secondary : COLORS.textMuted}
+                  />
+                )}
+                <Ionicons name={form.expanded ? 'chevron-up' : 'chevron-down'} size={14} color={COLORS.textMuted} />
               </View>
             </TouchableOpacity>
 
@@ -238,10 +400,15 @@ export default function SettingsScreen({
 
                 <View style={styles.formActions}>
                   <TouchableOpacity
-                    style={styles.saveButton}
+                    style={[styles.saveButton, validatingId === form.id && styles.saveButtonDisabled]}
                     onPress={() => handleSaveProvider(form)}
+                    disabled={validatingId === form.id}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    {validatingId === form.id ? (
+                      <ActivityIndicator color={COLORS.white} size="small" />
+                    ) : (
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.deleteProviderButton}
@@ -260,12 +427,113 @@ export default function SettingsScreen({
         </TouchableOpacity>
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>ℹ️  Connecting to vLLM / Ollama</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="information-circle-outline" size={16} color={COLORS.text} style={{ marginRight: 6 }} />
+            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Connecting to vLLM / Ollama</Text>
+          </View>
           <Text style={styles.infoText}>
             For local servers, ensure your device can reach the host machine.{'\n'}
             • iOS/Android on same WiFi: use your machine's local IP (e.g. 192.168.1.x){'\n'}
             • Android emulator: use 10.0.2.2 instead of localhost{'\n'}
             • iOS simulator: use localhost or 127.0.0.1
+          </Text>
+        </View>
+
+        {/* ── SearXNG Web Search Section ── */}
+        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Web Search (SearXNG)</Text>
+        <Text style={styles.sectionSubtitle}>
+          Connect a SearXNG instance to give your AI agents web search capabilities via tool calling.
+        </Text>
+
+        <View style={styles.providerCard}>
+          <TouchableOpacity
+            style={styles.providerHeader}
+            onPress={() => setSearxngExpanded(!searxngExpanded)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.providerHeaderLeft}>
+              <Text style={styles.providerName}>
+                {searxng?.enabled ? 'SearXNG Connected' : 'Not Configured'}
+              </Text>
+              <Text style={styles.providerType}>
+                {searxng?.enabled ? searxng.baseUrl : 'tap to configure'}
+              </Text>
+            </View>
+            <View style={styles.providerHeaderRight}>
+              {searxng?.enabled && (
+                <View style={[styles.statusDot, styles.statusActive]} />
+              )}
+              <Ionicons name={searxngExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={COLORS.textMuted} />
+            </View>
+          </TouchableOpacity>
+
+          {searxngExpanded && (
+            <View style={styles.providerForm}>
+              <Text style={styles.fieldLabel}>Server URL *</Text>
+              <TextInput
+                style={styles.input}
+                value={searxngUrl}
+                onChangeText={setSearxngUrl}
+                placeholder="https://searxng.example.com"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+
+              <Text style={styles.fieldLabel}>Request Type</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
+                {SEARXNG_REQUEST_TYPES.map(({ value, label }) => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[styles.typeChip, searxngRequestType === value && styles.typeChipActive]}
+                    onPress={() => setSearxngRequestType(value)}
+                  >
+                    <Text style={[styles.typeChipText, searxngRequestType === value && styles.typeChipTextActive]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.searxngHintText}>
+                {SEARXNG_REQUEST_TYPES.find((t) => t.value === searxngRequestType)?.description}
+              </Text>
+
+              <View style={styles.formActions}>
+                <TouchableOpacity
+                  style={[styles.saveButton, searxngValidating && styles.saveButtonDisabled]}
+                  onPress={handleSaveSearxng}
+                  disabled={searxngValidating}
+                >
+                  {searxngValidating ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Validate & Save</Text>
+                  )}
+                </TouchableOpacity>
+                {searxng?.enabled && (
+                  <TouchableOpacity
+                    style={styles.deleteProviderButton}
+                    onPress={handleRemoveSearxng}
+                  >
+                    <Text style={styles.deleteProviderText}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.infoCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="search-outline" size={16} color={COLORS.text} style={{ marginRight: 6 }} />
+            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>About SearXNG Search</Text>
+          </View>
+          <Text style={styles.infoText}>
+            When configured, a web_search tool is automatically provided to AI models that support tool/function calling.{'\n'}
+            • The AI will search the web when it needs up-to-date information{'\n'}
+            • Search results include titles, URLs, and content snippets{'\n'}
+            • JSON API mode is recommended for best reliability{'\n'}
+            • Self-host SearXNG or use a public instance
           </Text>
         </View>
       </ScrollView>
@@ -409,6 +677,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   deleteProviderButton: {
     backgroundColor: 'transparent',
     borderRadius: 8,
@@ -454,5 +725,10 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 13,
     lineHeight: 20,
+  },
+  searxngHintText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

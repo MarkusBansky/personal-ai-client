@@ -12,7 +12,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import uuid from 'react-native-uuid';
 import { RootStackParamList } from '../../App';
-import { Agent, AgentType, Provider } from '../types';
+import { Agent, AgentType } from '../types';
 import { COLORS, DEFAULT_SYSTEM_PROMPTS, AGENT_ICONS, AGENT_COLORS } from '../constants';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditAgent'>;
@@ -39,7 +39,7 @@ export default function EditAgentScreen({
   onSave,
   onDelete,
 }: EditAgentScreenProps) {
-  const { agent: existingAgent, providers } = route.params;
+  const { agent: existingAgent } = route.params;
   const isNew = !existingAgent;
 
   const [name, setName] = useState(existingAgent?.name ?? '');
@@ -47,9 +47,6 @@ export default function EditAgentScreen({
   const [agentType, setAgentType] = useState<AgentType>(existingAgent?.type ?? 'custom');
   const [systemPrompt, setSystemPrompt] = useState(
     existingAgent?.systemPrompt ?? DEFAULT_SYSTEM_PROMPTS.custom,
-  );
-  const [providerId, setProviderId] = useState<string>(
-    existingAgent?.providerId ?? providers[0]?.id ?? '',
   );
   const [icon, setIcon] = useState(existingAgent?.icon ?? '🤖');
   const [color, setColor] = useState(existingAgent?.color ?? AGENT_COLORS.custom);
@@ -68,10 +65,6 @@ export default function EditAgentScreen({
       Alert.alert('Validation', 'Please enter an agent name.');
       return;
     }
-    if (!providerId) {
-      Alert.alert('Validation', 'Please select a provider.');
-      return;
-    }
 
     const agent: Agent = {
       id: existingAgent?.id ?? (uuid.v4() as string),
@@ -79,14 +72,13 @@ export default function EditAgentScreen({
       type: agentType,
       description: description.trim(),
       systemPrompt: systemPrompt.trim(),
-      providerId,
       icon,
       color,
     };
 
     onSave(agent);
     navigation.goBack();
-  }, [name, description, agentType, systemPrompt, providerId, icon, color, existingAgent, onSave, navigation]);
+  }, [name, description, agentType, systemPrompt, icon, color, existingAgent, onSave, navigation]);
 
   const handleDelete = useCallback(() => {
     if (!existingAgent) return;
@@ -153,22 +145,6 @@ export default function EditAgentScreen({
             >
               <Text style={[styles.chipText, agentType === value && styles.chipTextActive]}>
                 {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Provider */}
-        <Text style={styles.label}>Provider *</Text>
-        <View style={styles.chipRow}>
-          {providers.map((p) => (
-            <TouchableOpacity
-              key={p.id}
-              style={[styles.chip, providerId === p.id && styles.chipActive]}
-              onPress={() => setProviderId(p.id)}
-            >
-              <Text style={[styles.chipText, providerId === p.id && styles.chipTextActive]}>
-                {p.name}
               </Text>
             </TouchableOpacity>
           ))}

@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Agent, AppSettings, Conversation, Provider } from './src/types';
+import { Agent, AppSettings, Conversation, Provider, SearxngConfig } from './src/types';
 import { COLORS } from './src/constants';
 import { loadSettings, saveSettings, loadConversations } from './src/services/storage';
 
@@ -19,7 +20,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 // ── Navigation param types ────────────────────────────────────────────────────
 export type RootStackParamList = {
   Tabs: undefined;
-  Chat: { agent: Agent; provider: Provider; conversation?: Conversation };
+  Chat: { agent: Agent; providers: Provider[]; conversation?: Conversation; searxng?: SearxngConfig };
   EditAgent: { agent: Agent | null; providers: Provider[] };
   Settings: undefined;
 };
@@ -47,12 +48,12 @@ const DarkTheme = {
   },
 };
 
-// ── Tab icons (text emoji) ────────────────────────────────────────────────────
-function tabIcon(name: keyof TabParamList, focused: boolean): string {
+// ── Tab icons ─────────────────────────────────────────────────────────────────
+function tabIconName(name: keyof TabParamList, focused: boolean): React.ComponentProps<typeof Ionicons>['name'] {
   switch (name) {
-    case 'Agents': return focused ? '🤖' : '🤖';
-    case 'History': return focused ? '💬' : '💬';
-    case 'Settings': return focused ? '⚙️' : '⚙️';
+    case 'Agents': return focused ? 'hardware-chip' : 'hardware-chip-outline';
+    case 'History': return focused ? 'chatbubbles' : 'chatbubbles-outline';
+    case 'Settings': return focused ? 'settings' : 'settings-outline';
   }
 }
 
@@ -105,6 +106,13 @@ export default function App() {
     [updateSettings],
   );
 
+  const handleSearxngChange = useCallback(
+    async (config: SearxngConfig | undefined) => {
+      await updateSettings({ searxng: config });
+    },
+    [updateSettings],
+  );
+
   if (!settings) {
     return (
       <View style={styles.loading}>
@@ -124,9 +132,11 @@ export default function App() {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 20 }}>
-              {tabIcon(route.name as keyof TabParamList, focused)}
-            </Text>
+            <Ionicons
+              name={tabIconName(route.name as keyof TabParamList, focused)}
+              size={22}
+              color={focused ? COLORS.primary : COLORS.textMuted}
+            />
           ),
           tabBarStyle: {
             backgroundColor: COLORS.surface,
@@ -143,6 +153,7 @@ export default function App() {
               {...props}
               agents={s.agents}
               providers={s.providers}
+              searxng={s.searxng}
             />
           )}
         </Tab.Screen>
@@ -153,6 +164,7 @@ export default function App() {
               conversations={conversations}
               agents={s.agents}
               providers={s.providers}
+              searxng={s.searxng}
               onConversationsChange={setConversations}
             />
           )}
@@ -163,6 +175,8 @@ export default function App() {
               {...props}
               providers={s.providers}
               onProvidersChange={handleProvidersChange}
+              searxng={s.searxng}
+              onSearxngChange={handleSearxngChange}
             />
           )}
         </Tab.Screen>
@@ -214,6 +228,8 @@ export default function App() {
                 {...props}
                 providers={s.providers}
                 onProvidersChange={handleProvidersChange}
+                searxng={s.searxng}
+                onSearxngChange={handleSearxngChange}
               />
             )}
           </Stack.Screen>

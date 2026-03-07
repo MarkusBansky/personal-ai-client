@@ -22,7 +22,10 @@ export async function loadSettings(): Promise<AppSettings> {
     return {
       ...defaultSettings,
       ...stored,
-      providers: stored.providers ?? defaultSettings.providers,
+      providers: (stored.providers ?? defaultSettings.providers).map((p) => ({
+        ...p,
+        enabled: p.enabled ?? true,
+      })),
       agents: stored.agents ?? defaultSettings.agents,
     };
   } catch {

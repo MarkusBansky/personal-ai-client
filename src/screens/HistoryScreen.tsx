@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   StyleSheet,
   Alert,
   SafeAreaView,
+  Animated,
 } from 'react-native';
+import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-import { Conversation, Agent, Provider } from '../types';
+import { Conversation, Agent, Provider, SearxngConfig } from '../types';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants';
 import { deleteConversation } from '../services/storage';
 
@@ -18,6 +21,7 @@ interface HistoryScreenProps {
   conversations: Conversation[];
   agents: Agent[];
   providers: Provider[];
+  searxng?: SearxngConfig;
   navigation: any;
   onConversationsChange: (conversations: Conversation[]) => void;
 }
@@ -36,34 +40,35 @@ export default function HistoryScreen({
   conversations,
   agents,
   providers,
+  searxng,
   navigation,
   onConversationsChange,
 }: HistoryScreenProps) {
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+
   const getAgent = useCallback(
     (agentId: string): Agent | undefined => agents.find((a) => a.id === agentId),
     [agents],
-  );
-
-  const getProvider = useCallback(
-    (providerId: string): Provider | undefined => providers.find((p) => p.id === providerId),
-    [providers],
   );
 
   const handleOpen = useCallback(
     (conv: Conversation) => {
       const agent = getAgent(conv.agentId);
       if (!agent) return;
-      const provider = getProvider(agent.providerId) ?? providers[0];
-      if (!provider) return;
-      navigation.navigate('Chat', { agent, provider, conversation: conv });
+      const enabledProviders = providers.filter((p) => p.enabled);
+      if (enabledProviders.length === 0) {
+        Alert.alert('No Provider', 'No enabled providers available. Enable a provider in Settings first.');
+        return;
+      }
+      navigation.navigate('Chat', { agent, providers, conversation: conv, searxng });
     },
-    [getAgent, getProvider, providers, navigation],
+    [getAgent, providers, searxng, navigation],
   );
 
   const handleDelete = useCallback(
     (conv: Conversation) => {
       Alert.alert('Delete Conversation', `Delete "${conv.title}"?`, [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel', onPress: () => swipeableRefs.current.get(conv.id)?.close() },
         {
           text: 'Delete',
           style: 'destructive',
@@ -77,65 +82,96 @@ export default function HistoryScreen({
     [conversations, onConversationsChange],
   );
 
+  const renderRightActions = useCallback(
+    (progress: Animated.AnimatedInterpolation<number>, _dragX: Animated.AnimatedInterpolation<number>, conv: Conversation) => {
+      const translateX = progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [80, 0],
+      });
+      return (
+        <Animated.View style={[styles.deleteAction, { transform: [{ translateX }] }]}>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(conv)}
+          >
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      );
+    },
+    [handleDelete],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Conversation }) => {
       const agent = getAgent(item.agentId);
       const lastMsg = item.messages.filter((m) => m.role !== 'system').at(-1);
       return (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => handleOpen(item)}
-          onLongPress={() => handleDelete(item)}
-          activeOpacity={0.8}
+        <Swipeable
+          ref={(ref) => {
+            if (ref) swipeableRefs.current.set(item.id, ref);
+            else swipeableRefs.current.delete(item.id);
+          }}
+          renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item)}
+          overshootRight={false}
+          rightThreshold={40}
         >
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardIcon}>{agent?.icon ?? '💬'}</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.cardTop}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <Text style={styles.cardDate}>{formatDate(item.updatedAt)}</Text>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => handleOpen(item)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.cardLeft}>
+              <Text style={styles.cardIcon}>{agent?.icon ?? '💬'}</Text>
             </View>
-            {lastMsg && (
-              <Text style={styles.cardPreview} numberOfLines={1}>
-                {lastMsg.role === 'user' ? 'You: ' : ''}{lastMsg.content}
-              </Text>
-            )}
-            {agent && (
-              <View style={[styles.agentBadge, { backgroundColor: agent.color + '33' }]}>
-                <Text style={[styles.agentBadgeText, { color: agent.color }]}>
-                  {agent.name}
+            <View style={styles.cardContent}>
+              <View style={styles.cardTop}>
+                <Text style={styles.cardTitle} numberOfLines={1}>
+                  {item.title}
                 </Text>
+                <Text style={styles.cardDate}>{formatDate(item.updatedAt)}</Text>
               </View>
-            )}
-          </View>
-        </TouchableOpacity>
+              {lastMsg && (
+                <Text style={styles.cardPreview} numberOfLines={1}>
+                  {lastMsg.role === 'user' ? 'You: ' : ''}{lastMsg.content}
+                </Text>
+              )}
+              {agent && (
+                <View style={[styles.agentBadge, { backgroundColor: agent.color + '33' }]}>
+                  <Text style={[styles.agentBadgeText, { color: agent.color }]}>
+                    {agent.name}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Swipeable>
       );
     },
-    [getAgent, handleOpen, handleDelete],
+    [getAgent, handleOpen, renderRightActions],
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={conversations}
-        keyExtractor={(c) => c.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={<Text style={styles.pageTitle}>History</Text>}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>💭</Text>
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Start a chat from the Agents tab
-            </Text>
-          </View>
-        }
-      />
-    </SafeAreaView>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        <FlatList
+          data={conversations}
+          keyExtractor={(c) => c.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={<Text style={styles.pageTitle}>History</Text>}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="chatbubble-ellipses-outline" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyTitle}>No conversations yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Start a chat from the Agents tab
+              </Text>
+            </View>
+          }
+        />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -207,6 +243,24 @@ const styles = StyleSheet.create({
   agentBadgeText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  deleteAction: {
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    width: 80,
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 72,
+    height: '100%',
+    borderRadius: 12,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   empty: {
     alignItems: 'center',

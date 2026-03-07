@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../../App';
-import { Agent, Provider } from '../types';
+import { Ionicons } from '@expo/vector-icons';
+import { Agent, Provider, SearxngConfig } from '../types';
 import { COLORS } from '../constants';
 
 type Props = CompositeScreenProps<
@@ -22,24 +24,22 @@ type Props = CompositeScreenProps<
 interface AgentsScreenProps {
   agents: Agent[];
   providers: Provider[];
+  searxng?: SearxngConfig;
   navigation: Props['navigation'];
 }
 
-export default function AgentsScreen({ agents, providers, navigation }: AgentsScreenProps) {
-  const getProvider = useCallback(
-    (providerId: string): Provider | undefined => providers.find((p) => p.id === providerId),
-    [providers],
-  );
+export default function AgentsScreen({ agents, providers, searxng, navigation }: AgentsScreenProps) {
+  const enabledProviders = providers.filter((p) => p.enabled);
 
   const handleAgentPress = useCallback(
     (agent: Agent) => {
-      const provider = getProvider(agent.providerId) ?? providers[0];
-      if (!provider) {
+      if (enabledProviders.length === 0) {
+        Alert.alert('No Provider', 'No enabled providers available. Enable a provider in Settings first.');
         return;
       }
-      navigation.navigate('Chat', { agent, provider });
+      navigation.navigate('Chat', { agent, providers, searxng });
     },
-    [getProvider, providers, navigation],
+    [enabledProviders, providers, searxng, navigation],
   );
 
   const handleEditAgent = useCallback(
@@ -55,7 +55,6 @@ export default function AgentsScreen({ agents, providers, navigation }: AgentsSc
 
   const renderAgent = useCallback(
     ({ item }: { item: Agent }) => {
-      const provider = getProvider(item.providerId);
       return (
         <TouchableOpacity
           style={[styles.agentCard, { borderLeftColor: item.color }]}
@@ -70,23 +69,18 @@ export default function AgentsScreen({ agents, providers, navigation }: AgentsSc
             <Text style={styles.agentDesc} numberOfLines={2}>
               {item.description}
             </Text>
-            {provider && (
-              <View style={styles.providerBadge}>
-                <Text style={styles.providerBadgeText}>{provider.name}</Text>
-              </View>
-            )}
           </View>
           <TouchableOpacity
             style={styles.editButton}
             onPress={() => handleEditAgent(item)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.editIcon}>✎</Text>
+            <Ionicons name="create-outline" size={18} color={COLORS.textMuted} />
           </TouchableOpacity>
         </TouchableOpacity>
       );
     },
-    [getProvider, handleAgentPress, handleEditAgent],
+    [handleAgentPress, handleEditAgent],
   );
 
   return (
@@ -156,18 +150,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 13,
     lineHeight: 18,
-  },
-  providerBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 2,
-  },
-  providerBadgeText: {
-    color: COLORS.textMuted,
-    fontSize: 11,
   },
   editButton: {
     padding: 4,
