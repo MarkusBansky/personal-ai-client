@@ -40,7 +40,7 @@ export default function ChatScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     if (searchAvailable) {
-      loadChatSearchEnabled().then(setSearchToggle);
+      loadChatSearchEnabled().then(setSearchToggle).catch(() => {});
     }
   }, [searchAvailable]);
 
@@ -55,7 +55,7 @@ export default function ChatScreen({ route, navigation }: Props) {
   }, []);
 
   const [messages, setMessages] = useState<Message[]>(() => {
-    const systemPrompt = searchEnabled
+    const systemPrompt = searchAvailable
       ? `${agent.systemPrompt}\n\n${SEARCH_SYSTEM_PROMPT_SUPPLEMENT}`
       : agent.systemPrompt;
     const systemMsg: Message = {
@@ -69,6 +69,20 @@ export default function ChatScreen({ route, navigation }: Props) {
     }
     return [systemMsg];
   });
+
+  // Keep the system message in sync with the search toggle for new conversations
+  useEffect(() => {
+    if (initialConversation) return;
+    const systemPrompt = searchEnabled
+      ? `${agent.systemPrompt}\n\n${SEARCH_SYSTEM_PROMPT_SUPPLEMENT}`
+      : agent.systemPrompt;
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const first = prev[0];
+      if (first.role !== 'system' || first.content === systemPrompt) return prev;
+      return [{ ...first, content: systemPrompt }, ...prev.slice(1)];
+    });
+  }, [searchEnabled, agent.systemPrompt, initialConversation]);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
