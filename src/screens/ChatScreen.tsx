@@ -24,7 +24,7 @@ import { Message, MessageVersion, Conversation, ModelInfo, LinkMeta, ToolCall, T
 import { COLORS, SEARCH_TOOL_DEFINITION, SEARCH_SYSTEM_PROMPT_SUPPLEMENT } from '../constants';
 import { streamChat, fetchModels } from '../services/ai';
 import { webSearch } from '../services/search';
-import { saveConversation } from '../services/storage';
+import { saveConversation, loadChatSearchEnabled, saveChatSearchEnabled } from '../services/storage';
 import { getModelPricing, calculateCost, formatCost, formatPrice } from '../constants/pricing';
 import LinkBubbles from '../components/LinkBubbles';
 import ModelSelectorModal, { SelectedModel } from '../components/ModelSelectorModal';
@@ -35,7 +35,24 @@ export default function ChatScreen({ route, navigation }: Props) {
   const { agent, providers, conversation: initialConversation, webSearch: webSearchConfig } = route.params;
   const headerHeight = useHeaderHeight();
 
-  const searchEnabled = !!webSearchConfig?.enabled;
+  const searchAvailable = !!webSearchConfig?.enabled;
+  const [searchToggle, setSearchToggle] = useState(searchAvailable);
+
+  useEffect(() => {
+    if (searchAvailable) {
+      loadChatSearchEnabled().then(setSearchToggle);
+    }
+  }, [searchAvailable]);
+
+  const searchEnabled = searchAvailable && searchToggle;
+
+  const handleSearchToggle = useCallback(() => {
+    setSearchToggle((prev) => {
+      const next = !prev;
+      saveChatSearchEnabled(next);
+      return next;
+    });
+  }, []);
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const systemPrompt = searchEnabled
@@ -789,22 +806,37 @@ export default function ChatScreen({ route, navigation }: Props) {
               </Text>
               <Ionicons name="chevron-down" size={14} color={COLORS.textMuted} />
             </TouchableOpacity>
-            {loading ? (
-              <TouchableOpacity
-                style={styles.stopButton}
-                onPress={stopGeneration}
-              >
-                <View style={styles.stopIcon} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.sendButton, !input.trim() && styles.sendDisabled]}
-                onPress={sendMessage}
-                disabled={!input.trim()}
-              >
-                <Ionicons name="arrow-up" size={22} color={COLORS.background} />
-              </TouchableOpacity>
-            )}
+            <View style={styles.inputActionsRight}>
+              {searchAvailable && (
+                <TouchableOpacity
+                  style={[styles.searchToggle, searchToggle && styles.searchToggleActive]}
+                  onPress={handleSearchToggle}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="globe-outline"
+                    size={18}
+                    color={searchToggle ? COLORS.secondary : COLORS.textMuted}
+                  />
+                </TouchableOpacity>
+              )}
+              {loading ? (
+                <TouchableOpacity
+                  style={styles.stopButton}
+                  onPress={stopGeneration}
+                >
+                  <View style={styles.stopIcon} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.sendButton, !input.trim() && styles.sendDisabled]}
+                  onPress={sendMessage}
+                  disabled={!input.trim()}
+                >
+                  <Ionicons name="arrow-up" size={22} color={COLORS.background} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
         <ModelSelectorModal
@@ -971,6 +1003,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 8,
+  },
+  inputActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceLight,
+  },
+  searchToggleActive: {
+    backgroundColor: COLORS.secondary + '22',
   },
   modelButton: {
     flexDirection: 'row',

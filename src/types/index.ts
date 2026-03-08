@@ -140,4 +140,5 @@ export interface AppSettings {
   activeConversationId: string | null;
   theme: 'light' | 'dark';
   webSearch?: WebSearchConfig;
+  chatSearchEnabled?: boolean;
 }

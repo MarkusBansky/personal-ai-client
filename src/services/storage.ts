@@ -5,6 +5,7 @@ import { DEFAULT_AGENTS, DEFAULT_PROVIDERS } from '../constants';
 const KEYS = {
   SETTINGS: '@pai_settings',
   CONVERSATIONS: '@pai_conversations',
+  CHAT_SEARCH_ENABLED: '@pai_chat_search_enabled',
 };
 
 const defaultSettings: AppSettings = {
@@ -88,4 +89,22 @@ export async function saveConversation(conversation: Conversation): Promise<void
 export async function deleteConversation(id: string): Promise<void> {
   const all = await loadConversations();
   await saveConversations(all.filter((c) => c.id !== id));
+}
+
+/**
+ * Load the persisted in-chat web-search toggle preference.
+ * Defaults to `true` (on) when no stored value exists.
+ */
+export async function loadChatSearchEnabled(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.CHAT_SEARCH_ENABLED);
+    if (raw === null) return true;
+    return JSON.parse(raw) as boolean;
+  } catch {
+    return true;
+  }
+}
+
+export async function saveChatSearchEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEYS.CHAT_SEARCH_ENABLED, JSON.stringify(enabled));
 }
