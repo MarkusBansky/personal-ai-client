@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppSettings, Conversation, Provider, Agent } from '../types';
+import { AppSettings, Conversation, Provider, Agent, WebSearchConfig } from '../types';
 import { DEFAULT_AGENTS, DEFAULT_PROVIDERS } from '../constants';
 
 const KEYS = {
   SETTINGS: '@pai_settings',
   CONVERSATIONS: '@pai_conversations',
+  CHAT_SEARCH_ENABLED: '@pai_chat_search_enabled',
 };
 
 const defaultSettings: AppSettings = {
@@ -14,19 +15,42 @@ const defaultSettings: AppSettings = {
   theme: 'dark',
 };
 
+/**
+ * Resolve the webSearch config from stored settings, migrating from
+ * the legacy `searxng` field if present.
+ */
+function resolveWebSearchConfig(stored: Record<string, unknown>): WebSearchConfig | undefined {
+  // Already migrated
+  if (stored.webSearch) return stored.webSearch as WebSearchConfig;
+
+  const legacy = stored.searxng as { enabled?: boolean; baseUrl?: string; requestType?: string } | undefined;
+  if (!legacy) return undefined;
+
+  return {
+    enabled: legacy.enabled ?? false,
+    activeProvider: 'searxng',
+    searxng: {
+      baseUrl: legacy.baseUrl ?? '',
+      requestType: (legacy.requestType as 'json_api' | 'html_get' | 'html_post') ?? 'json_api',
+    },
+  };
+}
+
 export async function loadSettings(): Promise<AppSettings> {
   try {
     const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
     if (!raw) return defaultSettings;
-    const stored = JSON.parse(raw) as Partial<AppSettings>;
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    const webSearch = resolveWebSearchConfig(stored);
     return {
       ...defaultSettings,
       ...stored,
-      providers: (stored.providers ?? defaultSettings.providers).map((p) => ({
+      providers: ((stored.providers ?? defaultSettings.providers) as Provider[]).map((p) => ({
         ...p,
         enabled: p.enabled ?? true,
       })),
-      agents: stored.agents ?? defaultSettings.agents,
+      agents: (stored.agents as Agent[] | undefined) ?? defaultSettings.agents,
+      webSearch,
     };
   } catch {
     return defaultSettings;
@@ -65,4 +89,22 @@ export async function saveConversation(conversation: Conversation): Promise<void
 export async function deleteConversation(id: string): Promise<void> {
   const all = await loadConversations();
   await saveConversations(all.filter((c) => c.id !== id));
+}
+
+/**
+ * Load the persisted in-chat web-search toggle preference.
+ * Defaults to `true` (on) when no stored value exists.
+ */
+export async function loadChatSearchEnabled(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.CHAT_SEARCH_ENABLED);
+    if (raw === null) return true;
+    return JSON.parse(raw) as boolean;
+  } catch {
+    return true;
+  }
+}
+
+export async function saveChatSearchEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEYS.CHAT_SEARCH_ENABLED, JSON.stringify(enabled));
 }

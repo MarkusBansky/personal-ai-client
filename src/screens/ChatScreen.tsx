@@ -23,8 +23,8 @@ import { RootStackParamList } from '../../App';
 import { Message, MessageVersion, Conversation, ModelInfo, LinkMeta, ToolCall, ToolResult } from '../types';
 import { COLORS, SEARCH_TOOL_DEFINITION, SEARCH_SYSTEM_PROMPT_SUPPLEMENT } from '../constants';
 import { streamChat, fetchModels } from '../services/ai';
-import { searchSearxng } from '../services/searxng';
-import { saveConversation } from '../services/storage';
+import { webSearch } from '../services/search';
+import { saveConversation, loadChatSearchEnabled, saveChatSearchEnabled } from '../services/storage';
 import { getModelPricing, calculateCost, formatCost, formatPrice } from '../constants/pricing';
 import LinkBubbles from '../components/LinkBubbles';
 import ModelSelectorModal, { SelectedModel } from '../components/ModelSelectorModal';
@@ -32,13 +32,30 @@ import ModelSelectorModal, { SelectedModel } from '../components/ModelSelectorMo
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
 export default function ChatScreen({ route, navigation }: Props) {
-  const { agent, providers, conversation: initialConversation, searxng } = route.params;
+  const { agent, providers, conversation: initialConversation, webSearch: webSearchConfig } = route.params;
   const headerHeight = useHeaderHeight();
 
-  const searchEnabled = !!searxng?.enabled;
+  const searchAvailable = !!webSearchConfig?.enabled;
+  const [searchToggle, setSearchToggle] = useState(searchAvailable);
+
+  useEffect(() => {
+    if (searchAvailable) {
+      loadChatSearchEnabled().then(setSearchToggle).catch(() => {});
+    }
+  }, [searchAvailable]);
+
+  const searchEnabled = searchAvailable && searchToggle;
+
+  const handleSearchToggle = useCallback(() => {
+    setSearchToggle((prev) => {
+      const next = !prev;
+      saveChatSearchEnabled(next);
+      return next;
+    });
+  }, []);
 
   const [messages, setMessages] = useState<Message[]>(() => {
-    const systemPrompt = searchEnabled
+    const systemPrompt = searchAvailable
       ? `${agent.systemPrompt}\n\n${SEARCH_SYSTEM_PROMPT_SUPPLEMENT}`
       : agent.systemPrompt;
     const systemMsg: Message = {
@@ -52,6 +69,20 @@ export default function ChatScreen({ route, navigation }: Props) {
     }
     return [systemMsg];
   });
+
+  // Keep the system message in sync with the search toggle for new conversations
+  useEffect(() => {
+    if (initialConversation) return;
+    const systemPrompt = searchEnabled
+      ? `${agent.systemPrompt}\n\n${SEARCH_SYSTEM_PROMPT_SUPPLEMENT}`
+      : agent.systemPrompt;
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const first = prev[0];
+      if (first.role !== 'system' || first.content === systemPrompt) return prev;
+      return [{ ...first, content: systemPrompt }, ...prev.slice(1)];
+    });
+  }, [searchEnabled, agent.systemPrompt, initialConversation]);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -304,7 +335,7 @@ export default function ChatScreen({ route, navigation }: Props) {
   }, [persistConversation]);
 
   const handleToolCalls = useCallback(async (toolCalls: ToolCall[]): Promise<ToolResult[]> => {
-    if (!searxng) return [];
+    if (!webSearchConfig) return [];
 
     const results: ToolResult[] = [];
     for (const tc of toolCalls) {
@@ -313,7 +344,7 @@ export default function ChatScreen({ route, navigation }: Props) {
           const args = JSON.parse(tc.arguments || '{}');
           const query = args.query ?? '';
           setSearchStatus(`Searching: "${query}"`);
-          const searchResults = await searchSearxng(searxng, query);
+          const searchResults = await webSearch(webSearchConfig, query);
           results.push({
             toolCallId: tc.id,
             name: tc.name,
@@ -341,7 +372,7 @@ export default function ChatScreen({ route, navigation }: Props) {
     }
     setSearchStatus(null);
     return results;
-  }, [searxng]);
+  }, [webSearchConfig]);
 
   const toolOptions = useMemo(() => {
     if (!searchEnabled) return undefined;
@@ -789,22 +820,37 @@ export default function ChatScreen({ route, navigation }: Props) {
               </Text>
               <Ionicons name="chevron-down" size={14} color={COLORS.textMuted} />
             </TouchableOpacity>
-            {loading ? (
-              <TouchableOpacity
-                style={styles.stopButton}
-                onPress={stopGeneration}
-              >
-                <View style={styles.stopIcon} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.sendButton, !input.trim() && styles.sendDisabled]}
-                onPress={sendMessage}
-                disabled={!input.trim()}
-              >
-                <Ionicons name="arrow-up" size={22} color={COLORS.background} />
-              </TouchableOpacity>
-            )}
+            <View style={styles.inputActionsRight}>
+              {searchAvailable && (
+                <TouchableOpacity
+                  style={[styles.searchToggle, searchToggle && styles.searchToggleActive]}
+                  onPress={handleSearchToggle}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="globe-outline"
+                    size={18}
+                    color={searchToggle ? COLORS.secondary : COLORS.textMuted}
+                  />
+                </TouchableOpacity>
+              )}
+              {loading ? (
+                <TouchableOpacity
+                  style={styles.stopButton}
+                  onPress={stopGeneration}
+                >
+                  <View style={styles.stopIcon} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.sendButton, !input.trim() && styles.sendDisabled]}
+                  onPress={sendMessage}
+                  disabled={!input.trim()}
+                >
+                  <Ionicons name="arrow-up" size={22} color={COLORS.background} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
         <ModelSelectorModal
@@ -971,6 +1017,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 8,
+  },
+  inputActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceLight,
+  },
+  searchToggleActive: {
+    backgroundColor: COLORS.secondary + '22',
   },
   modelButton: {
     flexDirection: 'row',
